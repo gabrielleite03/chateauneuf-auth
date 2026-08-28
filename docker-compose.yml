@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  network-auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: network-auth-service
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      APP_PORT: 8080
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      OMADA_TLS_INSECURE: "false"

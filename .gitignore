@@ -1,0 +1,19 @@
+# Binary outputs
+/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Local env
+.env
+
+# Go build artifacts
+coverage.out
+
+# Editor
+.vscode/
+.DS_Store
+
+# OS
+Thumbs.db

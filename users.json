@@ -1,0 +1,12 @@
+[
+  {
+    "username": "apto72",
+    "password_hash": "$2a$10$JZ9PwyKEL6E5NxYf0H08E.gD5kI2w.au38iHxpBDGQPr7eKJ5vS4m",
+    "enabled": true
+  },
+  {
+    "username": "admin",
+    "password_hash": "$2a$10$5juAKYg8F9fx1t4jk3xwx.2f1nI2cN1jCcSCwToYQJ0A4NYzGj6vW",
+    "enabled": true
+  }
+]

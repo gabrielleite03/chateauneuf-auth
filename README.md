@@ -1,0 +1,171 @@
+# network-auth-service
+
+Microsserviço em Go para autenticação de clientes em captive portal do Omada Controller, seguindo Clean Architecture / Hexagonal Architecture.
+
+## Arquitetura
+
+A arquitetura foi organizada em camadas:
+
+- domain: modelos e regras do domínio
+- application: serviço de autenticação
+- ports: interfaces de dependência
+- adapters: repositório local e integração Omada
+- transport/http: endpoints do portal e segurança HTTP
+- config: configuração por environment variables
+
+O desenho detalhado está em [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Fluxo External Portal Server
+
+1. o cliente tenta acessar a internet;
+2. o gateway/Omada redireciona para o portal externo;
+3. o serviço recebe `GET /portal` com dados do cliente;
+4. o sistema cria uma sessão temporária e renderiza o HTML do login;
+5. o cliente envia `POST /portal/authenticate` com `session_id`, `username`, `password`;
+6. o serviço valida a conta localmente;
+7. o adapter Omada envia a autorização do cliente;
+8. o navegador é redirecionado para a URL segura original.
+
+## Como executar localmente
+
+```bash
+go mod tidy
+go run ./cmd/api
+```
+
+A aplicação usa as variáveis de ambiente do arquivo `.env`, conforme descrito em [.env.example](.env.example).
+
+## Environment variables
+
+```env
+APP_PORT=8080
+APP_ENV=development
+LOG_LEVEL=INFO
+
+OMADA_BASE_URL=https://192.168.10.X:8043
+OMADA_USERNAME=
+OMADA_PASSWORD=
+OMADA_SITE=default
+OMADA_CONTROLLER_ID=
+OMADA_TLS_INSECURE=false
+OMADA_AUTHORIZATION_PATH=/portal/authorize
+OMADA_AUTHORIZATION_METHOD=POST
+
+USERS_FILE=./users.json
+PORTAL_SESSION_TTL=5m
+CLIENT_AUTH_DURATION=24h
+
+RATE_LIMIT_REQUESTS=20
+RATE_LIMIT_WINDOW=1m
+```
+
+## Como gerar password hash
+
+```bash
+go run ./cmd/hashpassword 'minhaSenha123'
+```
+
+## Como cadastrar usuário de desenvolvimento
+
+O arquivo base já inclui o usuário de exemplo abaixo:
+
+```json
+[
+  {
+    "username": "apto72",
+    "password_hash": "$2a$10$JZ9PwyKEL6E5NxYf0H08E.gD5kI2w.au38iHxpBDGQPr7eKJ5vS4m",
+    "enabled": true
+  }
+]
+```
+
+Para criar outra senha, use:
+
+```bash
+go run ./cmd/hashpassword 'senhaSegura123'
+```
+
+E depois substitua o valor do campo `password_hash` no arquivo `users.json`.
+
+## Como executar testes
+
+```bash
+go test ./...
+go vet ./...
+```
+
+## Como gerar imagem Docker
+
+```bash
+docker build -t network-auth-service .
+```
+
+## Configuração do External Portal Server no Omada
+
+No Controller Mode, configure:
+
+- Authentication Type: External Portal Server
+- Portal Server URL: a URL pública ou acessível pelo cliente e pelo Controller
+- redirect URL e parâmetros do cliente conforme o requisito do Omada
+- `clientMac`, `clientIp`, `site`, `redirectUrl` e demais parâmetros dependentes da versão do Controller
+
+Os detalhes específicos do contrato real ficam encapsulados no adapter Omada em `internal/adapters/omada`.
+
+## Como descobrir a URL que deve ser configurada no Controller
+
+A URL do serviço depende do endereço em que ele será exposto. Em ambiente local, pode ser algo como:
+
+```text
+http://localhost:8080/portal
+```
+
+Se o Omada estiver atrás de um proxy ou NAT, configure a URL externa acessível pelos clientes e pelo Controller, e mantenha a mesma rota `/portal` no serviço.
+
+Exemplo prático de uso local:
+
+- serviço em execução em `http://localhost:8080`
+- rota do portal: `http://localhost:8080/portal`
+- usuário de exemplo: `apto72`
+- senha de exemplo: `senha123`
+
+> A senha do exemplo foi gerada com bcrypt e já está no arquivo `users.json`.
+
+## Limitações conhecidas
+
+- este serviço não implementa regras de morador, portaria, câmeras ou financeiro;
+- o fluxo real de autorização no Omada depende da versão do Controller e do tipo de portal configurado;
+- a autenticação local é apenas um backend de desenvolvimento, preparado para ser trocado por uma API do sistema principal.
+
+## Diferenças relevantes por versão do Omada
+
+A integração foi isolada em `internal/adapters/omada` para separar:
+
+- autenticação do serviço no Controller;
+- gerenciamento de sessão e CSRF;
+- payload de autorização do cliente;
+- diferenças de endpoint ou header por versão;
+- tratamento de TLS self-signed em laboratório.
+
+A regra de ouro é: não inventar endpoints ou campos. Todo ajuste do contrato oficial fica no adapter e deve ser documentado nele e neste README.
+
+## Mermaid sequence diagram
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant O as Omada
+    participant P as Portal Go
+    participant U as UserRepository
+
+    C->>O: Tenta acessar Internet
+    O-->>C: Redirect para External Portal
+    C->>P: GET /portal + dados do cliente
+    P-->>C: Login
+    C->>P: POST credentials
+    P->>U: ValidateCredentials()
+    U-->>P: valid
+    P->>O: Autoriza client MAC/IP
+    O-->>P: authorized
+    P-->>C: Redirect
+    C->>O: Internet liberada
+```

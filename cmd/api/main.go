@@ -1,0 +1,66 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"network-auth-service/internal/adapters/omada"
+	localrepo "network-auth-service/internal/adapters/repository/local"
+	"network-auth-service/internal/application/auth"
+	"network-auth-service/internal/config"
+	"network-auth-service/internal/transport/http"
+)
+
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	repo, err := localrepo.NewRepository(cfg.UsersFile)
+	if err != nil {
+		panic(err)
+	}
+
+	omadaClient := omada.NewClient(cfg.OMADABaseURL, cfg.OMADAUsername, cfg.OMADAPassword, cfg.OMADASite, cfg.OMADAControllerID, cfg.OMADAAuthPath, cfg.OMADAAuthMethod, cfg.OMADATLSInsecure, 10*time.Second)
+	svc := auth.NewService(repo, omadaClient, logger, cfg.PortalSessionTTL, cfg.ClientAuthDuration)
+
+	h := transporthttp.NewHandler(svc, logger, cfg.PortalSessionTTL)
+	mux := transporthttp.NewRouter(h)
+
+	server := &http.Server{
+		Addr:              fmt.Sprintf(":%d", cfg.Port),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      20 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("server_shutdown_failed", "error", err)
+		}
+	}()
+
+	logger.Info("server_started", "port", cfg.Port)
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Error("server_failed", "error", err)
+		os.Exit(1)
+	}
+}
