@@ -13,36 +13,53 @@ import (
 )
 
 func TestOmadaAuthorize(t *testing.T) {
-	path := "/portal/authorize"
+	const controllerID = "controller-1"
+	loginPath := "/" + controllerID + "/api/v2/hotspot/login"
+	authPath := "/" + controllerID + "/api/v2/hotspot/extPortal/auth"
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != path {
+		switch r.URL.Path {
+		case loginPath:
+			var payload ControllerLoginRequest
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode login payload: %v", err)
+			}
+			if payload.Name != "operator" || payload.Password != "pass" {
+				t.Fatalf("unexpected login payload: %+v", payload)
+			}
+			http.SetCookie(w, &http.Cookie{Name: "TPOMADA_SESSIONID", Value: "session", Path: "/"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"errorCode": 0, "result": map[string]string{"token": "csrf-token"}})
+		case authPath:
+			cookie, err := r.Cookie("TPOMADA_SESSIONID")
+			if err != nil || cookie.Value != "session" {
+				t.Fatalf("missing Omada session cookie: %v", err)
+			}
+			if r.Header.Get("Csrf-Token") != "csrf-token" {
+				t.Fatalf("missing CSRF token")
+			}
+			var payload AuthorizeRequest
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode authorization payload: %v", err)
+			}
+			if payload.ClientMAC == "" || payload.GatewayMAC == "" || payload.VID != "1" || payload.AuthType != 4 || payload.Time != 86400000 {
+				t.Fatalf("unexpected authorization payload: %+v", payload)
+			}
+			_ = json.NewEncoder(w).Encode(AuthorizeResponse{ErrorCode: 0, Msg: "success"})
+		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		if r.Method != http.MethodPost {
-			t.Fatalf("unexpected method: %s", r.Method)
-		}
-		var payload AuthorizeRequest
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			t.Fatalf("decode payload: %v", err)
-		}
-		if payload.ClientMAC == "" || payload.ClientIP == "" {
-			t.Fatal("expected client identifiers")
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(AuthorizeResponse{Code: 0, Msg: "success"})
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "user", "pass", "default", "controller-1", path, http.MethodPost, true, 5*time.Second)
-	if err := client.Authorize(context.Background(), domain.Client{MAC: "AA:BB:CC:DD:EE:FF", IP: "192.168.10.42", SSID: "Condominio", APMAC: "AA:AA:AA:AA:AA:AA", GatewayMAC: "BB:BB:BB:BB:BB:BB", RadioID: "0"}, 24*time.Hour); err != nil {
+	client := NewClient(server.URL, "operator", "pass", "Chateauneuf", controllerID, "", http.MethodPost, true, 5*time.Second)
+	if err := client.Authorize(context.Background(), domain.Client{MAC: "AA:BB:CC:DD:EE:FF", IP: "192.168.10.42", GatewayMAC: "BB:BB:BB:BB:BB:BB", VLAN: "1", Site: "Chateauneuf"}, 24*time.Hour); err != nil {
 		t.Fatalf("authorize should succeed: %v", err)
 	}
 }
 
 func TestOmadaAuthorizeRequiresEndpointConfig(t *testing.T) {
-	client := NewClient("https://example.com", "user", "pass", "default", "controller-1", "", http.MethodPost, false, 5*time.Second)
+	client := NewClient("https://example.com", "user", "pass", "default", "", "", http.MethodPost, false, 5*time.Second)
 	err := client.Authorize(context.Background(), domain.Client{MAC: "AA", IP: "10.0.0.1"}, time.Hour)
-	if err == nil || !strings.Contains(err.Error(), "OMADA_AUTHORIZATION_PATH") {
+	if err == nil || !strings.Contains(err.Error(), "configuration incomplete") {
 		t.Fatalf("expected config error, got %v", err)
 	}
 }

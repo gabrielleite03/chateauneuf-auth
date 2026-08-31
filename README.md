@@ -42,13 +42,13 @@ APP_PORT=8080
 APP_ENV=development
 LOG_LEVEL=INFO
 
-OMADA_BASE_URL=https://192.168.10.X:8043
-OMADA_USERNAME=
+OMADA_BASE_URL=https://192.168.10.100:8043
+OMADA_USERNAME=portal-service
 OMADA_PASSWORD=
-OMADA_SITE=default
-OMADA_CONTROLLER_ID=
-OMADA_TLS_INSECURE=false
-OMADA_AUTHORIZATION_PATH=/portal/authorize
+OMADA_SITE=Chateauneuf
+OMADA_CONTROLLER_ID=0217b8a5a6dff81d96783c9ddc9e3f46
+OMADA_TLS_INSECURE=true
+OMADA_AUTHORIZATION_PATH=
 OMADA_AUTHORIZATION_METHOD=POST
 
 USERS_FILE=./users.json
@@ -111,6 +111,10 @@ No Controller Mode, configure:
 
 Os detalhes específicos do contrato real ficam encapsulados no adapter Omada em `internal/adapters/omada`.
 
+Para Omada Controller 5.0.15 a 6.2, crie uma conta em `Hotspot > Operators`; não use a conta administrativa do Controller. O adapter autentica em `/{controllerId}/api/v2/hotspot/login`, preserva o cookie `TPOMADA_SESSIONID` e o token CSRF, e autoriza o cliente em `/{controllerId}/api/v2/hotspot/extPortal/auth`, conforme o contrato oficial da TP-Link.
+
+`OMADA_TLS_INSECURE=true` deve ser usado somente enquanto o Controller utilizar certificado autoassinado. Em produção, instale um certificado confiável e altere o valor para `false`.
+
 ## Como descobrir a URL que deve ser configurada no Controller
 
 A URL do serviço depende do endereço em que ele será exposto. Em ambiente local, pode ser algo como:
@@ -133,7 +137,7 @@ Exemplo prático de uso local:
 ## Limitações conhecidas
 
 - este serviço não implementa regras de morador, portaria, câmeras ou financeiro;
-- o fluxo real de autorização no Omada depende da versão do Controller e do tipo de portal configurado;
+- o adapter implementa o contrato de External Portal documentado para Omada Controller 5.0.15 a 6.2; outras versões devem ser validadas separadamente;
 - a autenticação local é apenas um backend de desenvolvimento, preparado para ser trocado por uma API do sistema principal.
 
 ## Diferenças relevantes por versão do Omada
