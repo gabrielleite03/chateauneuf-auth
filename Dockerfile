@@ -12,5 +12,5 @@ COPY --from=build /out/network-auth-service /app/network-auth-service
 COPY --from=build /src/users.json /app/users.json
 EXPOSE 8080
 USER app
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD /app/network-auth-service --health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD wget -q -O - http://127.0.0.1:8080/health || exit 1
 ENTRYPOINT ["/app/network-auth-service"]
