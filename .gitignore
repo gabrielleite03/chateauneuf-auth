@@ -10,6 +10,14 @@
 
 # Go build artifacts
 coverage.out
+.gocache/
+.gocache-backend/
+
+# Local integrated-test data
+local-users.integration.json
+portaria.integration.db*
+portaria.residents.integration.db*
+integration-photos/
 
 # Editor
 .vscode/

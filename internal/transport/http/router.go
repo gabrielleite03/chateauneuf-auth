@@ -6,13 +6,17 @@ import (
 	"time"
 )
 
-func NewRouter(h *Handler) http.Handler {
+func NewRouter(h *Handler, admins ...*AdminHandler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/portal", h.Portal)
 	mux.HandleFunc("/portal/authenticate", h.Authenticate)
 	mux.HandleFunc("/logout", h.Logout)
 	mux.HandleFunc("/health", h.Health)
 	mux.HandleFunc("/ready", h.Ready)
+	if len(admins) > 0 && admins[0] != nil {
+		mux.HandleFunc("/admin/internet-accounts", admins[0].Accounts)
+		mux.HandleFunc("/admin/internet-accounts/", admins[0].Accounts)
+	}
 	base := withSecurityHeaders(mux)
 	return RateLimitMiddleware(20, time.Minute)(base)
 }

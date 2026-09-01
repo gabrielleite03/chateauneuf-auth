@@ -13,8 +13,10 @@ import (
 
 	"network-auth-service/internal/adapters/omada"
 	localrepo "network-auth-service/internal/adapters/repository/local"
+	residentrepo "network-auth-service/internal/adapters/repository/residents"
 	"network-auth-service/internal/application/auth"
 	"network-auth-service/internal/config"
+	"network-auth-service/internal/ports"
 	"network-auth-service/internal/transport/http"
 )
 
@@ -31,11 +33,24 @@ func main() {
 		panic(err)
 	}
 
-	omadaClient := omada.NewClient(cfg.OMADABaseURL, cfg.OMADAUsername, cfg.OMADAPassword, cfg.OMADASite, cfg.OMADAControllerID, cfg.OMADAAuthPath, cfg.OMADAAuthMethod, cfg.OMADATLSInsecure, 10*time.Second)
-	svc := auth.NewService(repo, omadaClient, logger, cfg.PortalSessionTTL, cfg.ClientAuthDuration)
+	var authorizer ports.NetworkAuthorizer
+	var revoker ports.NetworkRevoker
+	if cfg.OMADAMock {
+		mock := omada.MockNetwork{}
+		authorizer, revoker = mock, mock
+		logger.Warn("omada_mock_enabled", "warning", "network access is only simulated")
+	} else {
+		client := omada.NewClient(cfg.OMADABaseURL, cfg.OMADAUsername, cfg.OMADAPassword, cfg.OMADASite, cfg.OMADAControllerID, cfg.OMADAAuthPath, cfg.OMADAAuthMethod, cfg.OMADATLSInsecure, 10*time.Second)
+		client.SetRevokePath(cfg.OMADARevocationPath)
+		authorizer, revoker = client, client
+	}
+	svc := auth.NewService(repo, authorizer, logger, cfg.PortalSessionTTL, cfg.ClientAuthDuration)
+	accountSvc := auth.NewAccountService(repo, revoker, residentrepo.NewHTTPDirectory(cfg.ResidentsAPIURL))
+	accountSvc.SetEmployeeEnrollmentPassword(cfg.EmployeeEnrollmentPassword)
 
 	h := transporthttp.NewHandler(svc, logger, cfg.PortalSessionTTL)
-	mux := transporthttp.NewRouter(h)
+	adminHandler := transporthttp.NewAdminHandler(accountSvc, cfg.AdminToken)
+	mux := transporthttp.NewRouter(h, adminHandler)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),

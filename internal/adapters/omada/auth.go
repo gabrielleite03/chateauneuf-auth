@@ -29,6 +29,37 @@ type Client struct {
 	csrfMu          sync.Mutex
 	authorizePath   string
 	authorizeMethod string
+	revokePath      string
+}
+
+func (c *Client) SetRevokePath(path string) { c.revokePath = strings.TrimSpace(path) }
+
+func (c *Client) Revoke(ctx context.Context, client domain.Client) error {
+	if c.revokePath == "" {
+		return fmt.Errorf("OMADA_REVOCATION_PATH is required to revoke active sessions")
+	}
+	c.csrfMu.Lock()
+	defer c.csrfMu.Unlock()
+	if err := c.login(ctx); err != nil {
+		return err
+	}
+	body, _ := json.Marshal(map[string]string{"clientMac": client.MAC, "site": firstNonEmpty(client.Site, c.site)})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+c.revokePath, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Csrf-Token", c.csrfToken)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return &Error{Code: resp.StatusCode, Body: string(b)}
+	}
+	return nil
 }
 
 func NewClient(baseURL string, username string, password string, site string, controllerID string, authPath string, authMethod string, tlsInsecure bool, timeout time.Duration) *Client {

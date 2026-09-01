@@ -10,22 +10,27 @@ import (
 
 // Config holds application and Omada-specific runtime configuration.
 type Config struct {
-	Port                 int
-	AppEnv               string
-	LogLevel             string
-	OMADABaseURL         string
-	OMADAUsername        string
-	OMADAPassword        string
-	OMADASite            string
-	OMADAControllerID    string
-	OMADAAuthPath        string
-	OMADAAuthMethod      string
-	OMADATLSInsecure     bool
-	UsersFile            string
-	PortalSessionTTL     time.Duration
-	ClientAuthDuration   time.Duration
-	RateLimitRequests    int
-	RateLimitWindow      time.Duration
+	Port                       int
+	AppEnv                     string
+	LogLevel                   string
+	OMADABaseURL               string
+	OMADAUsername              string
+	OMADAPassword              string
+	OMADASite                  string
+	OMADAControllerID          string
+	OMADAAuthPath              string
+	OMADAAuthMethod            string
+	OMADARevocationPath        string
+	AdminToken                 string
+	ResidentsAPIURL            string
+	EmployeeEnrollmentPassword string
+	OMADATLSInsecure           bool
+	OMADAMock                  bool
+	UsersFile                  string
+	PortalSessionTTL           time.Duration
+	ClientAuthDuration         time.Duration
+	RateLimitRequests          int
+	RateLimitWindow            time.Duration
 }
 
 func Load() (Config, error) {
@@ -58,24 +63,33 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid OMADA_TLS_INSECURE: %w", err)
 	}
+	mock, err := strconv.ParseBool(getEnv("OMADA_MOCK", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid OMADA_MOCK: %w", err)
+	}
 
 	return Config{
-		Port:               port,
-		AppEnv:             getEnv("APP_ENV", "development"),
-		LogLevel:           getEnv("LOG_LEVEL", "INFO"),
-		OMADABaseURL:       getEnv("OMADA_BASE_URL", "https://192.168.10.X:8043"),
-		OMADAUsername:      getEnv("OMADA_USERNAME", ""),
-		OMADAPassword:      getEnv("OMADA_PASSWORD", ""),
-		OMADASite:          getEnv("OMADA_SITE", ""),
-		OMADAControllerID:  getEnv("OMADA_CONTROLLER_ID", ""),
-		OMADAAuthPath:      getEnv("OMADA_AUTHORIZATION_PATH", ""),
-		OMADAAuthMethod:    getEnv("OMADA_AUTHORIZATION_METHOD", http.MethodPost),
-		OMADATLSInsecure:   insecure,
-		UsersFile:          getEnv("USERS_FILE", "./users.json"),
-		PortalSessionTTL:   portalTTL,
-		ClientAuthDuration: authDuration,
-		RateLimitRequests:  limit,
-		RateLimitWindow:    window,
+		Port:                       port,
+		AppEnv:                     getEnv("APP_ENV", "development"),
+		LogLevel:                   getEnv("LOG_LEVEL", "INFO"),
+		OMADABaseURL:               getEnv("OMADA_BASE_URL", "https://192.168.10.X:8043"),
+		OMADAUsername:              getEnv("OMADA_USERNAME", ""),
+		OMADAPassword:              getEnv("OMADA_PASSWORD", ""),
+		OMADASite:                  getEnv("OMADA_SITE", ""),
+		OMADAControllerID:          getEnv("OMADA_CONTROLLER_ID", ""),
+		OMADAAuthPath:              getEnv("OMADA_AUTHORIZATION_PATH", ""),
+		OMADAAuthMethod:            getEnv("OMADA_AUTHORIZATION_METHOD", http.MethodPost),
+		OMADARevocationPath:        getEnv("OMADA_REVOCATION_PATH", ""),
+		AdminToken:                 getEnv("ADMIN_API_TOKEN", ""),
+		ResidentsAPIURL:            getEnv("RESIDENTS_API_URL", "http://localhost:8080/api/residents"),
+		EmployeeEnrollmentPassword: getEnv("EMPLOYEE_ENROLLMENT_PASSWORD", ""),
+		OMADATLSInsecure:           insecure,
+		OMADAMock:                  mock,
+		UsersFile:                  getEnv("USERS_FILE", "./users.json"),
+		PortalSessionTTL:           portalTTL,
+		ClientAuthDuration:         authDuration,
+		RateLimitRequests:          limit,
+		RateLimitWindow:            window,
 	}, nil
 }
 

@@ -41,19 +41,23 @@ func (h *Handler) Portal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := domain.Client{
-		MAC:         r.URL.Query().Get("clientMac"),
-		IP:          r.URL.Query().Get("clientIp"),
-		APMAC:       r.URL.Query().Get("apMac"),
-		GatewayMAC:  r.URL.Query().Get("gatewayMac"),
-		SSID:        r.URL.Query().Get("ssidName"),
-		RadioID:     r.URL.Query().Get("radioId"),
-		VLAN:        r.URL.Query().Get("vid"),
-		Site:        r.URL.Query().Get("site"),
-		RedirectURL: r.URL.Query().Get("redirectUrl"),
+		MAC:          r.URL.Query().Get("clientMac"),
+		IP:           r.URL.Query().Get("clientIp"),
+		APMAC:        r.URL.Query().Get("apMac"),
+		GatewayMAC:   r.URL.Query().Get("gatewayMac"),
+		SSID:         r.URL.Query().Get("ssidName"),
+		RadioID:      r.URL.Query().Get("radioId"),
+		VLAN:         r.URL.Query().Get("vid"),
+		Site:         r.URL.Query().Get("site"),
+		RedirectURL:  r.URL.Query().Get("redirectUrl"),
 		ControllerID: r.URL.Query().Get("controllerId"),
 	}
 	if client.MAC == "" || client.IP == "" {
 		http.Error(w, "missing required client information", http.StatusBadRequest)
+		return
+	}
+	if result, ok := h.service.AutoAuthenticate(r.Context(), client); ok {
+		http.Redirect(w, r, result.RedirectURL, http.StatusFound)
 		return
 	}
 

@@ -2,3 +2,10 @@
 .git
 .gitignore
 *.md
+.gocache/
+.gocache-backend/
+*.db
+*.db-shm
+*.db-wal
+local-users.integration.json
+api.exe

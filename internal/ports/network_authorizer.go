@@ -11,3 +11,7 @@ import (
 type NetworkAuthorizer interface {
 	Authorize(ctx context.Context, client domain.Client, duration time.Duration) error
 }
+
+type NetworkRevoker interface {
+	Revoke(ctx context.Context, client domain.Client) error
+}

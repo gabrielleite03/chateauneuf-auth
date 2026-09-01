@@ -33,6 +33,30 @@ go mod tidy
 go run ./cmd/api
 ```
 
+## Gestao de acesso dos apartamentos
+
+O servico expoe `GET/POST/PUT/DELETE /admin/internet-accounts` e
+`POST /admin/internet-accounts/{id}/password`. As chamadas exigem
+`Authorization: Bearer $ADMIN_API_TOKEN`. O backend da portaria deve guardar o
+token no servidor e encaminhar seu contrato `/api/internet-accounts` para essas
+rotas; o token nunca deve ser enviado ao navegador.
+
+Novas contas recebem validade de 90 dias, tres dispositivos, download/upload de
+30.000 Kbps e senha alfanumerica de seis caracteres exibida uma unica vez. Apenas
+o hash bcrypt e persistido. Um MAC autenticado e lembrado ate a expiracao da conta
+e pode ser reautorizado automaticamente.
+
+Contas de funcionarios sao criadas em `/admin/internet-accounts/employees`,
+exigem `EMPLOYEE_ENROLLMENT_PASSWORD`, aceitam uma senha individual livre e
+recebem validade de 30 dias, uma conexao e 10.000 Kbps de download/upload. A
+senha de liberacao e a senha individual nunca sao persistidas em texto puro.
+
+Configure no Omada um perfil de Portal/SSID com 30.000 Kbps de download e upload.
+O payload do External Portal nao recebe rate limit. Para troca de senha, bloqueio
+ou remocao com dispositivos ativos, configure `OMADA_REVOCATION_PATH` com a rota
+de desconexao confirmada para a versao instalada do Controller. Sem essa rota, a
+operacao falha antes de alterar o cadastro.
+
 A aplicação usa as variáveis de ambiente do arquivo `.env`, conforme descrito em [.env.example](.env.example).
 
 ## Environment variables

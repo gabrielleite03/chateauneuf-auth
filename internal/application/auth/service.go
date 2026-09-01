@@ -24,10 +24,10 @@ var (
 
 // Service handles portal authentication and authorization decisions.
 type Service struct {
-	userRepo       ports.UserRepository
-	networkAuthorizer ports.NetworkAuthorizer
-	portalSessions *PortalSessionStore
-	logger         *slog.Logger
+	userRepo           ports.UserRepository
+	networkAuthorizer  ports.NetworkAuthorizer
+	portalSessions     *PortalSessionStore
+	logger             *slog.Logger
 	clientAuthDuration time.Duration
 }
 
@@ -39,10 +39,10 @@ type PortalSessionStore struct {
 
 func NewService(userRepo ports.UserRepository, networkAuthorizer ports.NetworkAuthorizer, logger *slog.Logger, portalTTL time.Duration, clientAuthDuration time.Duration) *Service {
 	return &Service{
-		userRepo:          userRepo,
-		networkAuthorizer: networkAuthorizer,
-		portalSessions: &PortalSessionStore{sessions: make(map[string]*domain.PortalSession)},
-		logger:            logger,
+		userRepo:           userRepo,
+		networkAuthorizer:  networkAuthorizer,
+		portalSessions:     &PortalSessionStore{sessions: make(map[string]*domain.PortalSession)},
+		logger:             logger,
 		clientAuthDuration: clientAuthDuration,
 	}
 }
@@ -91,8 +91,23 @@ func (s *Service) Authenticate(ctx context.Context, sessionID string, username s
 		s.logger.Info("authentication_failed", "event", "authentication_failed", "username", username, "client_mac", session.Client.MAC)
 		return AuthResult{}, errors.New("user not enabled")
 	}
+	var registeredNew bool
+	devices, hasDevices := s.userRepo.(ports.DeviceRepository)
+	if hasDevices {
+		now := time.Now()
+		// The trusted-device record lasts for the credential lifetime. Omada's
+		// network authorization itself remains short-lived and is renewed here.
+		expiresAt := user.ExpiresAt
+		registeredNew, err = devices.RegisterDevice(ctx, user.Username, domain.AuthorizedDevice{MAC: session.Client.MAC, IP: session.Client.IP, AuthorizedAt: now, ExpiresAt: expiresAt}, now)
+		if err != nil {
+			return AuthResult{}, err
+		}
+	}
 
 	if err := s.networkAuthorizer.Authorize(ctx, session.Client, s.clientAuthDuration); err != nil {
+		if hasDevices && registeredNew {
+			_ = devices.RemoveDevice(context.Background(), user.Username, session.Client.MAC)
+		}
 		s.logger.Error("omada_authorization_failed", "err", err.Error(), "client_mac", session.Client.MAC, "client_ip", session.Client.IP)
 		return AuthResult{}, err
 	}
@@ -110,6 +125,26 @@ func (s *Service) Authenticate(ctx context.Context, sessionID string, username s
 	s.logger.Info("omada_authorization_success", "event", "omada_authorization_success", "client_mac", session.Client.MAC, "client_ip", session.Client.IP)
 
 	return AuthResult{Authenticated: true, ClientMAC: session.Client.MAC, ClientIP: session.Client.IP, RedirectURL: session.Client.RedirectURL, Message: "Acesso autorizado."}, nil
+}
+
+// AutoAuthenticate reconnects a previously authenticated MAC without asking for credentials again.
+func (s *Service) AutoAuthenticate(ctx context.Context, client domain.Client) (AuthResult, bool) {
+	devices, ok := s.userRepo.(ports.DeviceRepository)
+	if !ok {
+		return AuthResult{}, false
+	}
+	user, err := devices.FindByMAC(ctx, client.MAC, time.Now())
+	if err != nil || user == nil {
+		return AuthResult{}, false
+	}
+	if err := s.networkAuthorizer.Authorize(ctx, client.Normalized(), s.clientAuthDuration); err != nil {
+		return AuthResult{}, false
+	}
+	redirect := client.RedirectURL
+	if !isSafeRedirect(redirect) {
+		redirect = "/"
+	}
+	return AuthResult{Authenticated: true, ClientMAC: client.MAC, ClientIP: client.IP, RedirectURL: redirect, Message: "Acesso reconectado automaticamente."}, true
 }
 
 func (s *Service) sessionStore() *PortalSessionStore {
