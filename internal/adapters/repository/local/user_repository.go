@@ -188,7 +188,11 @@ func (r *Repository) Create(ctx context.Context, u domain.User) error {
 		}
 	}
 	r.records[u.ID] = fromDomain(u)
-	return r.persistLocked()
+	if err := r.persistLocked(); err != nil {
+		delete(r.records, u.ID)
+		return err
+	}
+	return nil
 }
 func (r *Repository) Update(ctx context.Context, u domain.User) error {
 	if err := ctx.Err(); err != nil {

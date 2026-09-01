@@ -64,4 +64,16 @@ func TestPortalHandlerAndAuthenticate(t *testing.T) {
 			t.Fatalf("expected redirect status 302 got %d", res.Code)
 		}
 	})
+
+	t.Run("authenticate uses safe local landing page for external URL", func(t *testing.T) {
+		session := service.CreatePortalSession(domain.Client{MAC: "AA:BB:CC:DD:EE:20", IP: "192.168.10.20", RedirectURL: "http://neverssl.com/"}, "127.0.0.1", 5*time.Minute)
+		form := bytes.NewBufferString("session_id=" + session.ID + "&username=apto72&password=senha123")
+		req := httptest.NewRequest(http.MethodPost, "/portal/authenticate", form)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res := httptest.NewRecorder()
+		h.Authenticate(res, req)
+		if res.Header().Get("Location") != "/portal/success" {
+			t.Fatalf("unexpected redirect %q", res.Header().Get("Location"))
+		}
+	})
 }

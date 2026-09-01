@@ -9,7 +9,8 @@ import (
 func NewRouter(h *Handler, admins ...*AdminHandler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/portal", h.Portal)
-	mux.HandleFunc("/portal/authenticate", h.Authenticate)
+	mux.HandleFunc("/portal/success", h.PortalSuccess)
+	mux.Handle("/portal/authenticate", RateLimitMiddleware(20, time.Minute)(http.HandlerFunc(h.Authenticate)))
 	mux.HandleFunc("/logout", h.Logout)
 	mux.HandleFunc("/health", h.Health)
 	mux.HandleFunc("/ready", h.Ready)
@@ -17,8 +18,7 @@ func NewRouter(h *Handler, admins ...*AdminHandler) http.Handler {
 		mux.HandleFunc("/admin/internet-accounts", admins[0].Accounts)
 		mux.HandleFunc("/admin/internet-accounts/", admins[0].Accounts)
 	}
-	base := withSecurityHeaders(mux)
-	return RateLimitMiddleware(20, time.Minute)(base)
+	return withSecurityHeaders(mux)
 }
 
 func withSecurityHeaders(next http.Handler) http.Handler {

@@ -60,7 +60,11 @@ func (h *Handler) Portal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result, ok := h.service.AutoAuthenticate(r.Context(), client); ok {
-		http.Redirect(w, r, result.RedirectURL, http.StatusFound)
+		redirectURL := result.RedirectURL
+		if !isSafeRedirectURL(redirectURL) {
+			redirectURL = "/portal/success"
+		}
+		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return
 	}
 
@@ -117,12 +121,21 @@ func (h *Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	redirectURL := result.RedirectURL
 	if redirectURL == "" {
-		redirectURL = "/"
+		redirectURL = "/portal/success"
 	}
 	if !isSafeRedirectURL(redirectURL) {
-		redirectURL = "/"
+		redirectURL = "/portal/success"
 	}
 	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func (h *Handler) PortalSuccess(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acesso liberado</title><body style="font-family:Arial;background:#f3f6f9;text-align:center;padding:60px"><main style="max-width:420px;margin:auto;background:white;padding:32px;border-radius:16px"><h1>Acesso liberado</h1><p>Seu dispositivo foi conectado à internet.</p><p>Você já pode fechar esta página.</p></main></body></html>`))
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
