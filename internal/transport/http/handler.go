@@ -52,7 +52,10 @@ func (h *Handler) Portal(w http.ResponseWriter, r *http.Request) {
 		RedirectURL:  r.URL.Query().Get("redirectUrl"),
 		ControllerID: r.URL.Query().Get("controllerId"),
 	}
-	if client.MAC == "" || client.IP == "" {
+	// Gateway portal redirects documented by Omada include clientMac,
+	// gatewayMac and vid, but do not always include clientIp. The MAC is the
+	// stable identity required to authorize and remember the device.
+	if client.MAC == "" {
 		http.Error(w, "missing required client information", http.StatusBadRequest)
 		return
 	}

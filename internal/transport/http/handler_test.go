@@ -44,6 +44,15 @@ func TestPortalHandlerAndAuthenticate(t *testing.T) {
 		}
 	})
 
+	t.Run("gateway portal accepts redirect without client IP", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/portal?clientMac=AA:BB:CC:DD:EE:10&gatewayMac=11:22:33:44:55:66&vid=20&site=Chateauneuf", nil)
+		res := httptest.NewRecorder()
+		h.Portal(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("expected 200 got %d", res.Code)
+		}
+	})
+
 	t.Run("authenticate success", func(t *testing.T) {
 		session := service.CreatePortalSession(domain.Client{MAC: "AA:BB:CC:DD:EE:FF", IP: "192.168.10.10", RedirectURL: "/"}, "127.0.0.1", 5*time.Minute)
 		form := bytes.NewBufferString("session_id=" + session.ID + "&username=apto72&password=senha123")
