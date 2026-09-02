@@ -23,6 +23,13 @@ func (s residentDirectoryStub) ApartmentExists(context.Context, string) (bool, e
 	return s.exists, nil
 }
 
+type credentialNotifierStub struct{ password string }
+
+func (s *credentialNotifierStub) NotifyInternetCredential(_ context.Context, _, _, password string, _ time.Time) error {
+	s.password = password
+	return nil
+}
+
 func TestAccountDefaultsAndPasswordRotation(t *testing.T) {
 	repo, err := local.NewRepository(filepath.Join(t.TempDir(), "users.json"))
 	if err != nil {
@@ -30,6 +37,8 @@ func TestAccountDefaultsAndPasswordRotation(t *testing.T) {
 	}
 	revoker := &recordingRevoker{}
 	svc := NewAccountService(repo, revoker, residentDirectoryStub{exists: true})
+	notifier := &credentialNotifierStub{}
+	svc.SetResidentCredentialNotifier(notifier)
 	u, password, err := svc.Create(context.Background(), "72")
 	if err != nil {
 		t.Fatal(err)
@@ -47,11 +56,11 @@ func TestAccountDefaultsAndPasswordRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newPassword, err := svc.ChangePassword(context.Background(), u.ID)
+	newPassword, emailSent, err := svc.ChangePassword(context.Background(), u.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if newPassword == password || len(revoker.clients) != 1 {
+	if newPassword != "" || !emailSent || notifier.password == password || len(revoker.clients) != 1 {
 		t.Fatal("password rotation must revoke the registered device")
 	}
 	if _, err = repo.FindByMAC(context.Background(), "AA:BB:CC:DD:EE:FF", time.Now()); err == nil {

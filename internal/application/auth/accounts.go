@@ -25,6 +25,7 @@ type AccountService struct {
 	repo                       ports.AccountRepository
 	revoker                    ports.NetworkRevoker
 	residents                  ports.ResidentDirectory
+	notifier                   ports.ResidentCredentialNotifier
 	employeeEnrollmentPassword string
 }
 
@@ -37,6 +38,9 @@ func NewAccountService(repo ports.AccountRepository, revoker ports.NetworkRevoke
 }
 func (s *AccountService) SetEmployeeEnrollmentPassword(password string) {
 	s.employeeEnrollmentPassword = password
+}
+func (s *AccountService) SetResidentCredentialNotifier(notifier ports.ResidentCredentialNotifier) {
+	s.notifier = notifier
 }
 func (s *AccountService) List(ctx context.Context) ([]domain.User, error) { return s.repo.List(ctx) }
 func (s *AccountService) Create(ctx context.Context, apartment string) (domain.User, string, error) {
@@ -70,6 +74,14 @@ func (s *AccountService) Create(ctx context.Context, apartment string) (domain.U
 	}
 	u := domain.User{ID: base64.RawURLEncoding.EncodeToString(idBytes), AccountType: "resident", Apartment: apartment, Username: username, PasswordHash: string(hash), Enabled: true, ExpiresAt: now.Add(90 * 24 * time.Hour), MaxConnections: DefaultMaxConnections, DownloadKbps: DefaultBandwidthKbps, UploadKbps: DefaultBandwidthKbps, CreatedAt: now, UpdatedAt: now}
 	if err = s.repo.Create(ctx, u); err != nil {
+		return domain.User{}, "", err
+	}
+	if s.notifier == nil {
+		_ = s.repo.Delete(context.Background(), u.ID)
+		return domain.User{}, "", errors.New("servico de e-mail residencial nao configurado")
+	}
+	if err = s.notifier.NotifyInternetCredential(ctx, u.Apartment, u.Username, password, u.ExpiresAt); err != nil {
+		_ = s.repo.Delete(context.Background(), u.ID)
 		return domain.User{}, "", err
 	}
 	return u, password, nil
@@ -130,26 +142,38 @@ func (s *AccountService) Update(ctx context.Context, id, apartment, username str
 	}
 	return *u, nil
 }
-func (s *AccountService) ChangePassword(ctx context.Context, id string) (string, error) {
+func (s *AccountService) ChangePassword(ctx context.Context, id string) (string, bool, error) {
 	u, err := s.repo.Get(ctx, id)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if err = s.revokeAll(ctx, u); err != nil {
-		return "", err
+		return "", false, err
 	}
 	password, err := randomPassword()
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", err
+		return "", false, err
+	}
+	if u.AccountType == "resident" {
+		if s.notifier == nil {
+			return "", false, errors.New("servico de e-mail residencial nao configurado")
+		}
+		if err = s.notifier.NotifyInternetCredential(ctx, u.Apartment, u.Username, password, u.ExpiresAt); err != nil {
+			return "", false, err
+		}
+		if err = s.repo.ReplacePasswordAndClearDevices(ctx, id, string(hash), time.Now()); err != nil {
+			return "", false, err
+		}
+		return "", true, nil
 	}
 	if err = s.repo.ReplacePasswordAndClearDevices(ctx, id, string(hash), time.Now()); err != nil {
-		return "", err
+		return "", false, err
 	}
-	return password, nil
+	return password, false, nil
 }
 func (s *AccountService) Delete(ctx context.Context, id string) error {
 	u, err := s.repo.Get(ctx, id)

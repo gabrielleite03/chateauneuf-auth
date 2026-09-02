@@ -95,12 +95,16 @@ func (h *AdminHandler) Accounts(w http.ResponseWriter, r *http.Request) {
 		}
 		if id != "" && strings.HasSuffix(id, "/password") {
 			id = strings.TrimSuffix(id, "/password")
-			password, err := h.service.ChangePassword(r.Context(), id)
+			password, emailSent, err := h.service.ChangePassword(r.Context(), id)
 			if err != nil {
 				writeAdminError(w, err)
 				return
 			}
-			json.NewEncoder(w).Encode(map[string]string{"generated_password": password})
+			if emailSent {
+				json.NewEncoder(w).Encode(map[string]bool{"email_sent": true})
+			} else {
+				json.NewEncoder(w).Encode(map[string]string{"generated_password": password})
+			}
 			return
 		}
 		var in accountInput
@@ -114,7 +118,7 @@ func (h *AdminHandler) Accounts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		o := output(u)
-		o.GeneratedPassword = password
+		_ = password
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(o)
 	case http.MethodPut:
@@ -144,5 +148,7 @@ func (h *AdminHandler) Accounts(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func writeAdminError(w http.ResponseWriter, err error) {
-	http.Error(w, err.Error(), http.StatusConflict)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusConflict)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 }

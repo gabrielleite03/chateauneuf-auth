@@ -42,10 +42,12 @@ func main() {
 	} else {
 		client := omada.NewClient(cfg.OMADABaseURL, cfg.OMADAUsername, cfg.OMADAPassword, cfg.OMADASite, cfg.OMADAControllerID, cfg.OMADAAuthPath, cfg.OMADAAuthMethod, cfg.OMADATLSInsecure, 10*time.Second)
 		client.SetRevokePath(cfg.OMADARevocationPath)
+		client.SetOpenAPI(cfg.OMADAOpenAPIClientID, cfg.OMADAOpenAPIClientSecret, cfg.OMADAOpenAPIControllerID, cfg.OMADASiteID)
 		authorizer, revoker = client, client
 	}
 	svc := auth.NewService(repo, authorizer, logger, cfg.PortalSessionTTL, cfg.ClientAuthDuration)
 	accountSvc := auth.NewAccountService(repo, revoker, residentrepo.NewHTTPDirectory(cfg.ResidentsAPIURL))
+	accountSvc.SetResidentCredentialNotifier(residentrepo.NewHTTPNotifier(cfg.ResidentCredentialNotifyURL, cfg.InternalAPIToken))
 	accountSvc.SetEmployeeEnrollmentPassword(cfg.EmployeeEnrollmentPassword)
 
 	h := transporthttp.NewHandler(svc, logger, cfg.PortalSessionTTL)

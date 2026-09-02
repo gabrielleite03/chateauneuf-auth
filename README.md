@@ -53,7 +53,9 @@ senha de liberacao e a senha individual nunca sao persistidas em texto puro.
 
 Configure no Omada um perfil de Portal/SSID com 30.000 Kbps de download e upload.
 O payload do External Portal nao recebe rate limit. Para troca de senha, bloqueio
-ou remocao com dispositivos ativos, configure `OMADA_REVOCATION_PATH` com a rota
+ou remocao com dispositivos ativos, configure a Open API oficial do Controller
+com `OMADA_OPENAPI_CLIENT_ID`, `OMADA_OPENAPI_CLIENT_SECRET` e `OMADA_SITE_ID`.
+`OMADA_REVOCATION_PATH` permanece apenas como compatibilidade legada.
 de desconexao confirmada para a versao instalada do Controller. Sem essa rota, a
 operacao falha antes de alterar o cadastro.
 
@@ -71,6 +73,10 @@ OMADA_USERNAME=portal-service
 OMADA_PASSWORD=
 OMADA_SITE=Chateauneuf
 OMADA_CONTROLLER_ID=0217b8a5a6dff81d96783c9ddc9e3f46
+OMADA_OPENAPI_CLIENT_ID=
+OMADA_OPENAPI_CLIENT_SECRET=
+OMADA_OPENAPI_OMADAC_ID=
+OMADA_SITE_ID=
 OMADA_TLS_INSECURE=true
 OMADA_AUTHORIZATION_PATH=
 OMADA_AUTHORIZATION_METHOD=POST

@@ -32,3 +32,7 @@ type AccountRepository interface {
 type ResidentDirectory interface {
 	ApartmentExists(ctx context.Context, apartment string) (bool, error)
 }
+
+type ResidentCredentialNotifier interface {
+	NotifyInternetCredential(ctx context.Context, apartment, username, password string, expiresAt time.Time) error
+}

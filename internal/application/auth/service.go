@@ -58,6 +58,16 @@ func (s *Service) CreatePortalSession(client domain.Client, sourceIP string, ttl
 		SourceIP:  sourceIP,
 	}
 	s.sessionStore().set(id, session)
+	s.logger.Info("portal_session_created",
+		"event", "portal_session_created",
+		"client_mac", session.Client.MAC,
+		"client_ip", session.Client.IP,
+		"gateway_mac", session.Client.GatewayMAC,
+		"vid", session.Client.VLAN,
+		"site", session.Client.Site,
+		"ap_mac", session.Client.APMAC,
+		"ssid", session.Client.SSID,
+	)
 	return session
 }
 
@@ -122,7 +132,16 @@ func (s *Service) Authenticate(ctx context.Context, sessionID string, username s
 	}
 
 	s.logger.Info("authentication_success", "event", "authentication_success", "username", username, "client_mac", session.Client.MAC, "client_ip", session.Client.IP)
-	s.logger.Info("omada_authorization_success", "event", "omada_authorization_success", "client_mac", session.Client.MAC, "client_ip", session.Client.IP)
+	s.logger.Info("omada_authorization_success",
+		"event", "omada_authorization_success",
+		"client_mac", session.Client.MAC,
+		"client_ip", session.Client.IP,
+		"gateway_mac", session.Client.GatewayMAC,
+		"vid", session.Client.VLAN,
+		"site", session.Client.Site,
+		"ap_mac", session.Client.APMAC,
+		"ssid", session.Client.SSID,
+	)
 
 	return AuthResult{Authenticated: true, ClientMAC: session.Client.MAC, ClientIP: session.Client.IP, RedirectURL: session.Client.RedirectURL, Message: "Acesso autorizado."}, nil
 }
