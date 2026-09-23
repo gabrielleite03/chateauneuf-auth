@@ -30,10 +30,12 @@ func (s *stubUserRepo) ValidateCredentials(ctx context.Context, username string,
 }
 
 type stubNetworkAuthorizer struct {
-	err error
+	err      error
+	duration time.Duration
 }
 
 func (s *stubNetworkAuthorizer) Authorize(ctx context.Context, client domain.Client, duration time.Duration) error {
+	s.duration = duration
 	return s.err
 }
 
@@ -79,6 +81,32 @@ func TestAuthService(t *testing.T) {
 		_, err := svc.Authenticate(context.Background(), session.ID, "apto72", "senha123")
 		if err == nil {
 			t.Fatal("expected authorizer failure")
+		}
+	})
+
+	t.Run("employee authorization lasts thirty days", func(t *testing.T) {
+		repo := &stubUserRepo{user: &domain.User{Username: "ana.func", AccountType: "employee", Enabled: true, ExpiresAt: time.Now().Add(31 * 24 * time.Hour)}}
+		authorizer := &stubNetworkAuthorizer{}
+		svc := NewService(repo, authorizer, logger, time.Minute, 24*time.Hour)
+		session := svc.CreatePortalSession(domain.Client{MAC: "AA:BB:CC:DD:EE:12"}, "127.0.0.1", time.Minute)
+		if _, err := svc.Authenticate(context.Background(), session.ID, "ana.func", "senha123"); err != nil {
+			t.Fatalf("expected authentication success: %v", err)
+		}
+		if authorizer.duration != 30*24*time.Hour {
+			t.Fatalf("expected thirty-day authorization, got %s", authorizer.duration)
+		}
+	})
+
+	t.Run("resident authorization lasts ninety days", func(t *testing.T) {
+		repo := &stubUserRepo{user: &domain.User{Username: "apto13", AccountType: "resident", Enabled: true, ExpiresAt: time.Now().Add(91 * 24 * time.Hour)}}
+		authorizer := &stubNetworkAuthorizer{}
+		svc := NewService(repo, authorizer, logger, time.Minute, 90*24*time.Hour)
+		session := svc.CreatePortalSession(domain.Client{MAC: "AA:BB:CC:DD:EE:13"}, "127.0.0.1", time.Minute)
+		if _, err := svc.Authenticate(context.Background(), session.ID, "apto13", "senha123"); err != nil {
+			t.Fatalf("expected authentication success: %v", err)
+		}
+		if authorizer.duration != 90*24*time.Hour {
+			t.Fatalf("expected ninety-day authorization, got %s", authorizer.duration)
 		}
 	})
 }

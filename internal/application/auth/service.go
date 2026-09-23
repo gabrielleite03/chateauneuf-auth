@@ -24,11 +24,12 @@ var (
 
 // Service handles portal authentication and authorization decisions.
 type Service struct {
-	userRepo           ports.UserRepository
-	networkAuthorizer  ports.NetworkAuthorizer
-	portalSessions     *PortalSessionStore
-	logger             *slog.Logger
-	clientAuthDuration time.Duration
+	userRepo             ports.UserRepository
+	networkAuthorizer    ports.NetworkAuthorizer
+	portalSessions       *PortalSessionStore
+	logger               *slog.Logger
+	clientAuthDuration   time.Duration
+	employeeAuthDuration time.Duration
 }
 
 // PortalSessionStore is the runtime authority for portal session and replay checks.
@@ -39,12 +40,33 @@ type PortalSessionStore struct {
 
 func NewService(userRepo ports.UserRepository, networkAuthorizer ports.NetworkAuthorizer, logger *slog.Logger, portalTTL time.Duration, clientAuthDuration time.Duration) *Service {
 	return &Service{
-		userRepo:           userRepo,
-		networkAuthorizer:  networkAuthorizer,
-		portalSessions:     &PortalSessionStore{sessions: make(map[string]*domain.PortalSession)},
-		logger:             logger,
-		clientAuthDuration: clientAuthDuration,
+		userRepo:             userRepo,
+		networkAuthorizer:    networkAuthorizer,
+		portalSessions:       &PortalSessionStore{sessions: make(map[string]*domain.PortalSession)},
+		logger:               logger,
+		clientAuthDuration:   clientAuthDuration,
+		employeeAuthDuration: 30 * 24 * time.Hour,
 	}
+}
+
+func (s *Service) SetEmployeeAuthDuration(duration time.Duration) {
+	if duration > 0 {
+		s.employeeAuthDuration = duration
+	}
+}
+
+func (s *Service) authorizationDuration(user *domain.User, now time.Time) time.Duration {
+	duration := s.clientAuthDuration
+	if user != nil && user.AccountType == "employee" {
+		duration = s.employeeAuthDuration
+	}
+	if user != nil && !user.ExpiresAt.IsZero() {
+		remaining := user.ExpiresAt.Sub(now)
+		if remaining < duration {
+			duration = remaining
+		}
+	}
+	return duration
 }
 
 func (s *Service) CreatePortalSession(client domain.Client, sourceIP string, ttl time.Duration) *domain.PortalSession {
@@ -114,7 +136,7 @@ func (s *Service) Authenticate(ctx context.Context, sessionID string, username s
 		}
 	}
 
-	if err := s.networkAuthorizer.Authorize(ctx, session.Client, s.clientAuthDuration); err != nil {
+	if err := s.networkAuthorizer.Authorize(ctx, session.Client, s.authorizationDuration(user, time.Now())); err != nil {
 		if hasDevices && registeredNew {
 			_ = devices.RemoveDevice(context.Background(), user.Username, session.Client.MAC)
 		}
@@ -156,13 +178,15 @@ func (s *Service) AutoAuthenticate(ctx context.Context, client domain.Client) (A
 	if err != nil || user == nil {
 		return AuthResult{}, false
 	}
-	if err := s.networkAuthorizer.Authorize(ctx, client.Normalized(), s.clientAuthDuration); err != nil {
+	if err := s.networkAuthorizer.Authorize(ctx, client.Normalized(), s.authorizationDuration(user, time.Now())); err != nil {
+		s.logger.Error("automatic_reconnection_failed", "event", "automatic_reconnection_failed", "err", err.Error(), "client_mac", client.MAC, "client_ip", client.IP)
 		return AuthResult{}, false
 	}
 	redirect := client.RedirectURL
 	if !isSafeRedirect(redirect) {
 		redirect = "/"
 	}
+	s.logger.Info("automatic_reconnection_success", "event", "automatic_reconnection_success", "username", user.Username, "client_mac", client.MAC, "client_ip", client.IP)
 	return AuthResult{Authenticated: true, ClientMAC: client.MAC, ClientIP: client.IP, RedirectURL: redirect, Message: "Acesso reconectado automaticamente."}, true
 }
 

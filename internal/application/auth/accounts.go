@@ -16,9 +16,11 @@ import (
 )
 
 const (
-	DefaultMaxConnections = 3
-	DefaultBandwidthKbps  = 30000
-	EmployeeBandwidthKbps = 10000
+	DefaultMaxConnections   = 5
+	DefaultBandwidthKbps    = 30000
+	EmployeeBandwidthKbps   = 10000
+	ResidentAccountDuration = 90 * 24 * time.Hour
+	EmployeeAccountDuration = 30 * 24 * time.Hour
 )
 
 type AccountService struct {
@@ -72,7 +74,7 @@ func (s *AccountService) Create(ctx context.Context, apartment string) (domain.U
 	if _, err = rand.Read(idBytes); err != nil {
 		return domain.User{}, "", err
 	}
-	u := domain.User{ID: base64.RawURLEncoding.EncodeToString(idBytes), AccountType: "resident", Apartment: apartment, Username: username, PasswordHash: string(hash), Enabled: true, ExpiresAt: now.Add(90 * 24 * time.Hour), MaxConnections: DefaultMaxConnections, DownloadKbps: DefaultBandwidthKbps, UploadKbps: DefaultBandwidthKbps, CreatedAt: now, UpdatedAt: now}
+	u := domain.User{ID: base64.RawURLEncoding.EncodeToString(idBytes), AccountType: "resident", Apartment: apartment, Username: username, PasswordHash: string(hash), Enabled: true, ExpiresAt: now.Add(ResidentAccountDuration), MaxConnections: DefaultMaxConnections, DownloadKbps: DefaultBandwidthKbps, UploadKbps: DefaultBandwidthKbps, CreatedAt: now, UpdatedAt: now}
 	if err = s.repo.Create(ctx, u); err != nil {
 		return domain.User{}, "", err
 	}
@@ -105,7 +107,7 @@ func (s *AccountService) CreateEmployee(ctx context.Context, name, username, pas
 		return domain.User{}, err
 	}
 	now := time.Now()
-	u := domain.User{ID: base64.RawURLEncoding.EncodeToString(idBytes), AccountType: "employee", Name: name, Username: username, PasswordHash: string(hash), Enabled: true, ExpiresAt: now.Add(30 * 24 * time.Hour), MaxConnections: 1, DownloadKbps: EmployeeBandwidthKbps, UploadKbps: EmployeeBandwidthKbps, CreatedAt: now, UpdatedAt: now}
+	u := domain.User{ID: base64.RawURLEncoding.EncodeToString(idBytes), AccountType: "employee", Name: name, Username: username, PasswordHash: string(hash), Enabled: true, ExpiresAt: now.Add(EmployeeAccountDuration), MaxConnections: 1, DownloadKbps: EmployeeBandwidthKbps, UploadKbps: EmployeeBandwidthKbps, CreatedAt: now, UpdatedAt: now}
 	if err = s.repo.Create(ctx, u); err != nil {
 		return domain.User{}, err
 	}

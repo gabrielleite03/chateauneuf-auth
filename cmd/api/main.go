@@ -46,6 +46,7 @@ func main() {
 		authorizer, revoker = client, client
 	}
 	svc := auth.NewService(repo, authorizer, logger, cfg.PortalSessionTTL, cfg.ClientAuthDuration)
+	svc.SetEmployeeAuthDuration(cfg.EmployeeAuthDuration)
 	accountSvc := auth.NewAccountService(repo, revoker, residentrepo.NewHTTPDirectory(cfg.ResidentsAPIURL))
 	accountSvc.SetResidentCredentialNotifier(residentrepo.NewHTTPNotifier(cfg.ResidentCredentialNotifyURL, cfg.InternalAPIToken))
 	accountSvc.SetEmployeeEnrollmentPassword(cfg.EmployeeEnrollmentPassword)

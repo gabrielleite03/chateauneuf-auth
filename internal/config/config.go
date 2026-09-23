@@ -35,6 +35,7 @@ type Config struct {
 	UsersFile                   string
 	PortalSessionTTL            time.Duration
 	ClientAuthDuration          time.Duration
+	EmployeeAuthDuration        time.Duration
 	RateLimitRequests           int
 	RateLimitWindow             time.Duration
 }
@@ -50,9 +51,13 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("invalid PORTAL_SESSION_TTL: %w", err)
 	}
 
-	authDuration, err := time.ParseDuration(getEnv("CLIENT_AUTH_DURATION", "24h"))
+	authDuration, err := time.ParseDuration(getEnv("CLIENT_AUTH_DURATION", "2160h"))
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid CLIENT_AUTH_DURATION: %w", err)
+	}
+	employeeAuthDuration, err := time.ParseDuration(getEnv("EMPLOYEE_AUTH_DURATION", "720h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid EMPLOYEE_AUTH_DURATION: %w", err)
 	}
 
 	limit, err := strconv.Atoi(getEnv("RATE_LIMIT_REQUESTS", "20"))
@@ -100,6 +105,7 @@ func Load() (Config, error) {
 		UsersFile:                   getEnv("USERS_FILE", "./users.json"),
 		PortalSessionTTL:            portalTTL,
 		ClientAuthDuration:          authDuration,
+		EmployeeAuthDuration:        employeeAuthDuration,
 		RateLimitRequests:           limit,
 		RateLimitWindow:             window,
 	}, nil

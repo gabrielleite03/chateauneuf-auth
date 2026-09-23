@@ -18,6 +18,16 @@ func NewRouter(h *Handler, admins ...*AdminHandler) http.Handler {
 		mux.HandleFunc("/admin/internet-accounts", admins[0].Accounts)
 		mux.HandleFunc("/admin/internet-accounts/", admins[0].Accounts)
 	}
+	// Omada installations may normalize the configured external portal URL to
+	// either the host root or /portal/. Serve both without making arbitrary
+	// unknown paths look like valid portal endpoints.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && r.URL.Path != "/portal/" {
+			http.NotFound(w, r)
+			return
+		}
+		h.Portal(w, r)
+	})
 	return withSecurityHeaders(mux)
 }
 

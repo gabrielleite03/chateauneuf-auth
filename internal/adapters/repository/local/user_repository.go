@@ -263,8 +263,10 @@ func (r *Repository) load() error {
 		if v.AccountType == "" {
 			v.AccountType = "resident"
 		}
-		if v.MaxConnections == 0 {
-			v.MaxConnections = 3
+		if v.AccountType == "resident" {
+			v.MaxConnections = 5
+		} else if v.MaxConnections == 0 {
+			v.MaxConnections = 1
 		}
 		if v.DownloadKbps == 0 {
 			v.DownloadKbps = 30000

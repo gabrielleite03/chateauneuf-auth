@@ -43,7 +43,7 @@ func TestAccountDefaultsAndPasswordRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(password) != 6 || u.MaxConnections != 3 || u.DownloadKbps != 30000 || u.UploadKbps != 30000 {
+	if len(password) != 6 || u.MaxConnections != 5 || u.DownloadKbps != 30000 || u.UploadKbps != 30000 {
 		t.Fatalf("unexpected defaults: %+v password length=%d", u, len(password))
 	}
 	if u.ExpiresAt.Before(time.Now().Add(89 * 24 * time.Hour)) {
@@ -85,7 +85,7 @@ func TestEmployeeAccountRules(t *testing.T) {
 	if u.AccountType != "employee" || u.DownloadKbps != 10000 || u.UploadKbps != 10000 || u.MaxConnections != 1 {
 		t.Fatalf("unexpected employee defaults: %+v", u)
 	}
-	if u.ExpiresAt.Before(time.Now().Add(29 * 24 * time.Hour)) {
+	if u.ExpiresAt.Before(time.Now().Add(29*24*time.Hour + 23*time.Hour)) {
 		t.Fatal("expected 30-day validity")
 	}
 	if _, err = repo.ValidateCredentials(context.Background(), "ana.func", "livre123"); err != nil {

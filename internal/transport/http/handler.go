@@ -41,16 +41,16 @@ func (h *Handler) Portal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := domain.Client{
-		MAC:          r.URL.Query().Get("clientMac"),
-		IP:           r.URL.Query().Get("clientIp"),
-		APMAC:        r.URL.Query().Get("apMac"),
-		GatewayMAC:   r.URL.Query().Get("gatewayMac"),
-		SSID:         r.URL.Query().Get("ssidName"),
-		RadioID:      r.URL.Query().Get("radioId"),
-		VLAN:         r.URL.Query().Get("vid"),
-		Site:         r.URL.Query().Get("site"),
-		RedirectURL:  r.URL.Query().Get("redirectUrl"),
-		ControllerID: r.URL.Query().Get("controllerId"),
+		MAC:          portalQueryValue(r, "clientMac", "client_mac", "client-mac", "mac"),
+		IP:           portalQueryValue(r, "clientIp", "client_ip", "client-ip", "ip"),
+		APMAC:        portalQueryValue(r, "apMac", "ap_mac", "ap-mac"),
+		GatewayMAC:   portalQueryValue(r, "gatewayMac", "gateway_mac", "gateway-mac"),
+		SSID:         portalQueryValue(r, "ssidName", "ssid_name", "ssid"),
+		RadioID:      portalQueryValue(r, "radioId", "radio_id"),
+		VLAN:         portalQueryValue(r, "vid", "vlan", "vlanId", "vlan_id"),
+		Site:         portalQueryValue(r, "site", "siteId", "site_id"),
+		RedirectURL:  portalQueryValue(r, "redirectUrl", "redirect_url", "redirect"),
+		ControllerID: portalQueryValue(r, "controllerId", "controller_id"),
 	}
 	// Gateway portal redirects documented by Omada include clientMac,
 	// gatewayMac and vid, but do not always include clientIp. The MAC is the
@@ -59,12 +59,8 @@ func (h *Handler) Portal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing required client information", http.StatusBadRequest)
 		return
 	}
-	if result, ok := h.service.AutoAuthenticate(r.Context(), client); ok {
-		redirectURL := result.RedirectURL
-		if !isSafeRedirectURL(redirectURL) {
-			redirectURL = "/portal/success"
-		}
-		http.Redirect(w, r, redirectURL, http.StatusFound)
+	if _, ok := h.service.AutoAuthenticate(r.Context(), client); ok {
+		http.Redirect(w, r, "/portal/success", http.StatusFound)
 		return
 	}
 
@@ -84,6 +80,31 @@ func (h *Handler) Portal(w http.ResponseWriter, r *http.Request) {
 	if err := loginTemplate.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// portalQueryValue accepts the parameter spellings used by different Omada
+// controller and gateway versions. Header-style casing must not turn a valid
+// captive-portal request into a 400 response.
+func portalQueryValue(r *http.Request, names ...string) string {
+	query := r.URL.Query()
+	for _, name := range names {
+		if value := strings.TrimSpace(query.Get(name)); value != "" {
+			return value
+		}
+	}
+	for key, values := range query {
+		for _, name := range names {
+			if !strings.EqualFold(key, name) {
+				continue
+			}
+			for _, value := range values {
+				if value = strings.TrimSpace(value); value != "" {
+					return value
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (h *Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
@@ -119,14 +140,10 @@ func (h *Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURL := result.RedirectURL
-	if redirectURL == "" {
-		redirectURL = "/portal/success"
-	}
-	if !isSafeRedirectURL(redirectURL) {
-		redirectURL = "/portal/success"
-	}
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	// Captive-network probes often provide relative targets such as
+	// /generate_204. Those paths do not belong to this service and used to end
+	// in a misleading 404 after a successful login.
+	http.Redirect(w, r, "/portal/success", http.StatusFound)
 }
 
 func (h *Handler) PortalSuccess(w http.ResponseWriter, r *http.Request) {
