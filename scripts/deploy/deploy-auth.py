@@ -26,6 +26,7 @@ assert login.get('errorCode')==0 and login.get('result',{}).get('token'),'Hotspo
 clients=request(op,base+'/'+env['OMADA_CONTROLLER_ID']+'/api/v2/hotspot/sites/'+env['OMADA_SITE_ID']+'/clients?currentPage=1&currentPageSize=1',headers={'Csrf-Token':login['result']['token']})
 assert clients.get('errorCode')==0,'Hotspot client listing rejected'
 print('Hotspot login and client-list permissions passed',flush=True)
+(P/'source').mkdir(mode=0o700,exist_ok=True)
 subprocess.run(['tar','-xzf',str(P/'source.tar.gz'),'-C',str(P/'source')],check=True)
 subprocess.run(['docker','build','--build-arg','APP_VERSION='+VERSION,'--build-arg','GIT_COMMIT='+manifest['commit'],'-t',IMAGE,str(P/'source')],check=True)
 assert inspect(IMAGE)['Config']['Labels']['org.opencontainers.image.revision']==manifest['commit']
