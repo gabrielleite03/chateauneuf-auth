@@ -92,3 +92,37 @@ func TestEmployeeAccountRules(t *testing.T) {
 		t.Fatalf("free password must authenticate: %v", err)
 	}
 }
+
+func TestEmployeePasswordRotation(t *testing.T) {
+	repo, err := local.NewRepository(filepath.Join(t.TempDir(), "users.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoker := &recordingRevoker{}
+	svc := NewAccountService(repo, revoker)
+	svc.SetEmployeeEnrollmentPassword("enrollment")
+	u, err := svc.CreateEmployee(context.Background(), "Test", "test.employee", "old-password", "enrollment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repo.RegisterDevice(context.Background(), u.Username, domain.AuthorizedDevice{MAC: "AA:BB:CC:DD:EE:FF", ExpiresAt: u.ExpiresAt}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	password, emailed, err := svc.ChangePassword(context.Background(), u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if emailed || len(password) != 6 || len(revoker.clients) != 1 {
+		t.Fatal("employee rotation must revoke device and return password")
+	}
+	if _, err = repo.ValidateCredentials(context.Background(), u.Username, password); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.ValidateCredentials(context.Background(), u.Username, "old-password"); err == nil {
+		t.Fatal("old password still accepted")
+	}
+	if _, err = repo.FindByMAC(context.Background(), "AA:BB:CC:DD:EE:FF", time.Now()); err == nil {
+		t.Fatal("device trust not cleared")
+	}
+}

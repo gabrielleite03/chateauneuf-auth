@@ -25,3 +25,7 @@ integration-photos/
 
 # OS
 Thumbs.db
+
+.env.txt
+
+.tmp/

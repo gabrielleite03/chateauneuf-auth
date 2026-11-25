@@ -389,7 +389,11 @@ func (c *Client) login(ctx context.Context) error {
 		return fmt.Errorf("decode omada login response: %w", err)
 	}
 	if result.ErrorCode != 0 {
-		return &Error{Code: result.ErrorCode, Message: result.Msg}
+		apiErr := &Error{Code: result.ErrorCode, Message: result.Msg}
+		if result.ErrorCode == -30109 {
+			return fmt.Errorf("credencial do operador Hotspot rejeitada pelo Omada; verifique OMADA_USERNAME e OMADA_PASSWORD: %w", apiErr)
+		}
+		return fmt.Errorf("autenticacao do operador Hotspot: %w", apiErr)
 	}
 	if result.Result.Token == "" {
 		return fmt.Errorf("omada hotspot login response missing CSRF token")

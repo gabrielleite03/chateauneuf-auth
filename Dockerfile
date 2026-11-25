@@ -7,6 +7,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata && addgroup -S app && adduser -S -G app app
+ARG APP_VERSION=dev
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.version=$APP_VERSION org.opencontainers.image.revision=$GIT_COMMIT
 WORKDIR /app
 COPY --from=build /out/network-auth-service /app/network-auth-service
 RUN printf '[]\n' > /app/users.json && chown app:app /app/users.json

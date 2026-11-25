@@ -9,3 +9,7 @@
 *.db-wal
 local-users.integration.json
 api.exe
+
+.env.txt
+
+.tmp/
